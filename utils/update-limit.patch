@@ -1,0 +1,106 @@
+commit 2f42d41108c7e2cd3b4458d69db887cec3f1dcaf
+Author: Brian Starkey <stark3y@gmail.com>
+Date:   Sat Jul 30 11:26:06 2022 +0100
+
+    HACKS: Update to allow 64kB for bootloader
+    
+    On some set-ups, apparently the bootloader build is much larger.
+    Hopefully 64kB for bootloader code is enough.
+    
+    New layout is:
+    0-64k:  boot2 + boot3
+    64-68k: image header
+    68k+:   app code
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 421c713..0642b7c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -103,16 +103,16 @@ function(bootloader_build_combined NAME)
+ 
+ 	pico_add_bin_output(${NAME})
+ 
+-	# TODO: The hard-coded 16k here is a bit nasty
++	# TODO: The hard-coded 68k here is a bit nasty
+ 	add_custom_target(${APP}_bin DEPENDS ${APP_BIN})
+ 	add_custom_command(OUTPUT ${APP_BIN} DEPENDS ${NAME}.bin
+-		COMMAND dd ibs=1k iseek=16 if=${NAME}.bin of=${APP_BIN}
++		COMMAND dd ibs=1k iseek=68 if=${NAME}.bin of=${APP_BIN}
+ 	)
+ 
+ 	# TODO: The hard-coded address here is a bit nasty
+ 	add_custom_target(${APP}_hdr DEPENDS ${APP}_bin)
+ 	add_custom_command(OUTPUT ${APP_HDR} DEPENDS ${APP_BIN}
+-		COMMAND ${BOOTLOADER_DIR}/gen_imghdr.py -a 0x10004000 ${APP_BIN} ${APP_HDR}
++		COMMAND ${BOOTLOADER_DIR}/gen_imghdr.py -a 0x10011000 ${APP_BIN} ${APP_HDR}
+ 	)
+ 
+ 	add_custom_target(${COMBINED} ALL DEPENDS ${APP_HDR})
+diff --git a/bootloader.ld b/bootloader.ld
+index c82585d..3cff182 100644
+--- a/bootloader.ld
++++ b/bootloader.ld
+@@ -21,10 +21,10 @@
+     __stack (== StackTop)
+ */
+ 
+-/* Limit flash to 12k, so we can use 12-16k for the image header */
++/* Limit flash to 64k, so we can use 64-68k for the image header */
+ MEMORY
+ {
+-    FLASH(rx) : ORIGIN = 0x10000000, LENGTH = 12k
++    FLASH(rx) : ORIGIN = 0x10000000, LENGTH = 64k
+     RAM(rwx) : ORIGIN =  0x20000000, LENGTH = 256k
+     SCRATCH_X(rwx) : ORIGIN = 0x20040000, LENGTH = 4k
+     SCRATCH_Y(rwx) : ORIGIN = 0x20041000, LENGTH = 4k
+diff --git a/combined.ld b/combined.ld
+index 761e360..0da610e 100644
+--- a/combined.ld
++++ b/combined.ld
+@@ -21,12 +21,12 @@
+     __stack (== StackTop)
+ */
+ 
+-/* Skip 16kB at the start of flash, that's where our bootloader is */
++/* Skip 68kB at the start of flash, that's where our bootloader is */
+ MEMORY
+ {
+-    FLASH_BL(rx) : ORIGIN = 0x10000000, LENGTH = 12k
+-    FLASH_IMGHDR(rx) : ORIGIN = 0x10000000 + 12k, LENGTH = 4k
+-    FLASH_APP(rx) : ORIGIN = 0x10000000 + 16k, LENGTH = 2048k - 16k
++    FLASH_BL(rx) : ORIGIN = 0x10000000, LENGTH = 64k
++    FLASH_IMGHDR(rx) : ORIGIN = 0x10000000 + 64k, LENGTH = 4k
++    FLASH_APP(rx) : ORIGIN = 0x10000000 + 68k, LENGTH = 2048k - 68k
+     RAM(rwx) : ORIGIN =  0x20000000, LENGTH = 256k
+     SCRATCH_X(rwx) : ORIGIN = 0x20040000, LENGTH = 4k
+     SCRATCH_Y(rwx) : ORIGIN = 0x20041000, LENGTH = 4k
+diff --git a/src/main.c b/src/main.c
+index 86e7fe3..b74eb7e 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -53,7 +53,7 @@
+ #define RSP_OK   (('O' << 0) | ('K' << 8) | ('O' << 16) | ('K' << 24))
+ #define RSP_ERR  (('E' << 0) | ('R' << 8) | ('R' << 16) | ('!' << 24))
+ 
+-#define IMAGE_HEADER_OFFSET (12 * 1024)
++#define IMAGE_HEADER_OFFSET (64 * 1024)
+ 
+ #define WRITE_ADDR_MIN (XIP_BASE + IMAGE_HEADER_OFFSET + FLASH_SECTOR_SIZE)
+ #define ERASE_ADDR_MIN (XIP_BASE + IMAGE_HEADER_OFFSET)
+diff --git a/standalone.ld b/standalone.ld
+index 448f834..53a2a21 100644
+--- a/standalone.ld
++++ b/standalone.ld
+@@ -21,10 +21,10 @@
+     __stack (== StackTop)
+ */
+ 
+-/* Skip 16kB at the start of flash, that's where our bootloader is */
++/* Skip 68kB at the start of flash, that's where our bootloader is */
+ MEMORY
+ {
+-    FLASH(rx) : ORIGIN = 0x10000000 + 16k, LENGTH = 2048k - 16k
++    FLASH(rx) : ORIGIN = 0x10000000 + 68k, LENGTH = 2048k - 68k
+     RAM(rwx) : ORIGIN =  0x20000000, LENGTH = 256k
+     SCRATCH_X(rwx) : ORIGIN = 0x20040000, LENGTH = 4k
+     SCRATCH_Y(rwx) : ORIGIN = 0x20041000, LENGTH = 4k
