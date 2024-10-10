@@ -33,6 +33,57 @@ project(test_project C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+
+find_package(Git)
+if(NOT GIT_FOUND) 
+    message(FATA_ERROR "Git not found")
+endif()
+
+# Get all patches in patches directory in a list and apply them
+# (debug command)
+file(GLOB PATCHES "${CMAKE_SOURCE_DIR}/patches/*")
+foreach(PATCH ${PATCHES})
+    message(STATUS "Applying patch: ${PATCH}")
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} apply ${PATCH}
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        ERROR_QUIET
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+endforeach()
+
+# Use git status --porcelain --ignore-submodules=dirty to check if there are uncommited changes.
+# There are uncommited changes if there is at least a line starting with something different to "??".
+execute_process(
+    COMMAND ${GIT_EXECUTABLE} status --porcelain --ignore-submodules=dirty
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE GIT_STATUS
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+# Check every line of GIT_STTUS to see if there is any line starting with something different to "??".
+# If there is, then there are uncommited changes.
+string(REGEX MATCH "^[^?]" DIRTY_FLAG "${GIT_STATUS}")
+if(DIRTY_FLAG)
+    message(STATUS "There are uncommited changes")
+    set(DIRTY_FLAG "--dirty")
+else()
+    message(STATUS "There are no uncommited changes")
+    set(DIRTY_FLAG "")
+endif()
+
+#https://bravenewmethod.com/2017/07/14/git-revision-as-compiler-definition-in-build-with-cmake/
+message(STATUS "Resolving GIT Version...")
+execute_process(
+    COMMAND ${GIT_EXECUTABLE} describe --long --tags --match "[[:digit:]]*" --abbrev=8 ${DIRTY_FLAG} --always
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE BUILD_VERSION
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+message( STATUS "GIT hash: ${BUILD_VERSION}")
+
 pico_sdk_init()
 
 # Build the bootloader as a standalone thing
