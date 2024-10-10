@@ -16,6 +16,8 @@
 #include "hardware/resets.h"
 #include "hardware/uart.h"
 #include "hardware/watchdog.h"
+#include <pico/multicore.h>
+#include <tusb.h>
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -680,8 +682,20 @@ static bool should_stay_in_bootloader()
 	return !gpio_get(BOOTLOADER_ENTRY_PIN) || wd_says_so;
 }
 
+void usb_task(void) {
+  tusb_init();
+
+  while (1) {
+    tud_task();
+  }
+}
+
+
 int main(void)
 {
+
+  	multicore_launch_core1(usb_task);
+
 	gpio_init(PICO_DEFAULT_LED_PIN);
 	gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 	gpio_put(PICO_DEFAULT_LED_PIN, 1);

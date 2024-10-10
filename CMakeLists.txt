@@ -24,6 +24,8 @@
 
 cmake_minimum_required(VERSION 3.13)
 
+set(ENV{PICO_SDK_PATH} "${CMAKE_SOURCE_DIR}/external/pico-sdk")
+
 include(pico_sdk_import.cmake)
 
 project(test_project C CXX ASM)
@@ -35,7 +37,10 @@ pico_sdk_init()
 
 # Build the bootloader as a standalone thing
 
-add_executable(bootloader main.c)
+add_executable(bootloader 
+	src/main.c
+	src/usb-descriptors.c
+)
 
 function(target_cl_options option)
     target_compile_options(bootloader PRIVATE ${option})
@@ -54,13 +59,22 @@ set_target_properties(bootloader PROPERTIES COMPILE_FLAGS "-Wall")
 
 pico_set_linker_script(bootloader ${CMAKE_CURRENT_SOURCE_DIR}/bootloader.ld)
 
+target_include_directories(bootloader PUBLIC
+	./src
+	external/pico-sdk/lib/tinyusb/src)
+
 target_link_libraries(bootloader
                       pico_stdlib
+					  pico_stdio_usb
                       hardware_dma
                       hardware_flash
                       hardware_structs
                       hardware_resets
-                      cmsis_core)
+                      cmsis_core
+					  pico_multicore
+					  pico_stdlib_headers
+					  tinyusb_device
+)
 
 set(BOOTLOADER_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE INTERNAL "")
 
